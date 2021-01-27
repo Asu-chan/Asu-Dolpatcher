@@ -51,14 +51,14 @@ namespace Asu_s_Dolpatcher
 					Console.WriteLine("       \"Asu's Dolpatcher.exe\" [options]");
 					Console.WriteLine("       \"Asu's Dolpatcher.exe\"");
 					Console.WriteLine("       In the 2nd and 3rd cases, you will be asked for the file paths.\r\n\r\n"); // Thanks to Mullkaw for correcting my weird-sounding english! ^^
-					Console.WriteLine("Options: -silent                   -> Prevents from displaying any console outputs aparts from the necessary ones");
+					Console.WriteLine("Options: --silent                  -> Prevents from displaying any console outputs aparts from the necessary ones");
 					Console.WriteLine("         --always-create-sections  -> Always create a new section if a target pointer is outside of the DOL range.");
 					Console.WriteLine("         --never-create-sections   -> Never create a new section if a target pointer is outside of the DOL range.");
 					Console.WriteLine("         --binary-files-dir <path> -> Set the default directory for binary files.");
 					return;
 				}
 
-				if (args.Contains("-silent"))
+				if (args.Contains("--silent"))
 				{
 					isSilent = true;
 					Console.WriteLine("Silent Mode: true");

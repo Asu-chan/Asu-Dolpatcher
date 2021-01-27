@@ -11,7 +11,7 @@ A tool to patch Nintendo Wii DOL executables using Riivolution XML files.
 (Note: In the 2nd and 3rd cases, you will be asked for the file paths.)
 
 # Options
--silent                   -\> Prevents from displaying any console outputs aparts from the necessary ones
+--silent                  -\> Prevents from displaying any console outputs aparts from the necessary ones
 
 --always-create-sections  -\> Always create a new section if a target pointer is outside of the DOL range.
 
