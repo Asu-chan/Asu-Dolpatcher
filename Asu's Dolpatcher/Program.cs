@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using System.Xml.Serialization;
 
 /*******************************/
-/*** Asu's Dolpatcher v1.0.0 ***/
+/*** Asu's Dolpatcher v1.1.0 ***/
 /* This file contains the main */
 /****** code of the tool. ******/
 /*******************************/
@@ -27,7 +27,7 @@ namespace Asu_s_Dolpatcher
 		[STAThread] // This is needed for System.Windows.Forms to work. Sorry MacOS/Linux users. :/
 		static void Main(string[] args)
 		{
-			Console.WriteLine("Asu's Dolpatcher - v1.0.0");
+			Console.WriteLine("Asu's Dolpatcher - v1.1.0");
 			Dolpatcher dp = new Dolpatcher();
 			dp.Main(args);
 		}
@@ -41,7 +41,9 @@ namespace Asu_s_Dolpatcher
 		public void Main(string[] args)
 		{
 			bool isSilent = false, alwaysCreateSections = false, neverCreateSections = false, isThereDefinedPaths = false;
-			string dolPath = "", xmlPath = "", outPath = "", binPath = "";
+			string dolPath = "", xmlPath = "", outPath = "", binPath = "", region = "Ask";
+			List<string> patches = new List<string>();
+
 			if (args.Length > 0) // Arguments getting
 			{
 				if (args[0] == "-h" || args[0] == "--help" || args[0] == "/?")
@@ -51,10 +53,12 @@ namespace Asu_s_Dolpatcher
 					Console.WriteLine("       \"Asu's Dolpatcher.exe\" [options]");
 					Console.WriteLine("       \"Asu's Dolpatcher.exe\"");
 					Console.WriteLine("       In the 2nd and 3rd cases, you will be asked for the file paths.\r\n\r\n"); // Thanks to Mullkaw for correcting my weird-sounding english! ^^
-					Console.WriteLine("Options: --silent                  -> Prevents from displaying any console outputs aparts from the necessary ones");
-					Console.WriteLine("         --always-create-sections  -> Always create a new section if a target pointer is outside of the DOL range.");
-					Console.WriteLine("         --never-create-sections   -> Never create a new section if a target pointer is outside of the DOL range.");
-					Console.WriteLine("         --binary-files-dir <path> -> Set the default directory for binary files.");
+					Console.WriteLine("Options: --silent                             -> Prevents from displaying any console outputs aparts from the necessary ones");
+					Console.WriteLine("         --always-create-sections             -> Always create a new section if a target pointer is outside of the DOL range.");
+					Console.WriteLine("         --never-create-sections              -> Never create a new section if a target pointer is outside of the DOL range.");
+					Console.WriteLine("         --binary-files-dir <path>            -> Set the default directory for binary files.");
+					Console.WriteLine("         --only-patches \"Patch1;Patch2;...\" -> Makes it so only the given patches will be used to patch the DOL.");
+					Console.WriteLine("         --region <P/E/J/K/W>                 -> Uses the said region for files that requires a region name.");
 					return;
 				}
 
@@ -80,6 +84,29 @@ namespace Asu_s_Dolpatcher
 					if(!binPath.EndsWith(Path.DirectorySeparatorChar.ToString())) { binPath += Path.DirectorySeparatorChar; }
 				}
 
+				if (args.Contains("--only-patches"))
+				{
+					string patchesArg = args[Array.IndexOf(args, "--only-patches") + 1];
+					if (patchesArg.Contains(";"))
+					{
+						patches = args[Array.IndexOf(args, "--only-patches") + 1].Split(';').ToList();
+					}
+					else
+					{
+						patches.Add(patchesArg);
+					}
+				}
+
+				if (args.Contains("--region"))
+				{
+					region = args[Array.IndexOf(args, "--region") + 1];
+					if(region != "E" && region != "P" && region != "J" && region != "K" && region != "W")
+					{
+						Console.WriteLine(region + " isn't a valid region. Please choose between P, E, J, K or W.");
+						return;
+					}
+				}
+
 				if (alwaysCreateSections && neverCreateSections)
 				{
 					Console.WriteLine("PLEASE. You can't want new sections AND not wanting them! Either you want them or either you don't!!");
@@ -88,7 +115,24 @@ namespace Asu_s_Dolpatcher
 
 				if (!isSilent)
 				{
-					Console.WriteLine("Arguments got:\r\n-Section Creating: " + (alwaysCreateSections ? "Always" : "Never"));
+					Console.WriteLine("Arguments got:");
+					Console.WriteLine("-Section Creating: " + (alwaysCreateSections ? "Always" : (neverCreateSections ? "Never" : "Ask")));
+					Console.WriteLine("-Region: " + region);
+
+					if(patches.Count > 0)
+					{
+						string allPatches = "";
+						foreach (string patch in patches)
+						{
+							allPatches += "\"" + patch + "\"" + ((patches.IndexOf(patch) == patches.Count - 1) ? "" : ", ");
+						}
+						Console.WriteLine("-Patches: " + allPatches);
+					}
+					else
+					{
+						Console.WriteLine("-Patches: All");
+					}
+
 				}
 
 				if (args[0].Contains(".dol"))
@@ -106,7 +150,7 @@ namespace Asu_s_Dolpatcher
 				{
 					Console.WriteLine("Can't find DOL or XML file: No such file or directory.");
 				}
-				doStuff(dolPath, xmlPath, outPath, binPath, isSilent, alwaysCreateSections, neverCreateSections);
+				doStuff(dolPath, xmlPath, outPath, binPath, patches, region, isSilent, alwaysCreateSections, neverCreateSections);;
 				return;
 			}
 			else // No paths defined? Ask them.
@@ -143,7 +187,7 @@ namespace Asu_s_Dolpatcher
 									outPath = ((FileStream)(sw.BaseStream)).Name;
 									sw.Close();
 
-									doStuff(dialog.FileName, dialog2.FileName, outPath, binPath, isSilent, alwaysCreateSections, neverCreateSections);
+									doStuff(dialog.FileName, dialog2.FileName, outPath, binPath, patches, region, isSilent, alwaysCreateSections, neverCreateSections);
 								}
 								else
 								{
@@ -167,11 +211,11 @@ namespace Asu_s_Dolpatcher
 			}
 		}
 
-		public void doStuff(string dolPath, string xmlPath, string outPath, string binPath, bool isSilent, bool alwaysCreateSections, bool neverCreateSections)
+		List<int> newSectionsIndexes = new List<int>();
+		byte[] dol = new byte[0];
+		public void doStuff(string dolPath, string xmlPath, string outPath, string binPath, List<string> patchesList, string region, bool isSilent, bool alwaysCreateSections, bool neverCreateSections)
 		{
-
-			byte[] dol = File.ReadAllBytes(dolPath);
-			List<string> xml = File.ReadAllLines(xmlPath).ToList();
+			dol = File.ReadAllBytes(dolPath);
 
 			if (!isSilent) { Console.WriteLine("Files found."); Console.WriteLine("Decoding DOL file header..."); }
 
@@ -184,166 +228,254 @@ namespace Asu_s_Dolpatcher
 
 			if (!isSilent) { Console.WriteLine("Decoding XML file..."); }
 
-			// I know this is a pretty bad way to do it, but it works.
-			string fullXML = "<riivomem>\r\n";
-			foreach (string line in xml) // Removing unnecessary lines.
+			List<riivolutionPatch> patches = new List<riivolutionPatch>();
+			riivolutionXML XML = riivolutionXML.load(xmlPath);
+			if(patchesList.Count > 0)
 			{
-				if (!line.Contains("memory"))
+				foreach(string patchToUse in patchesList)
 				{
-					continue;
-				}
-				fullXML += line + "\r\n";
-			}
-			fullXML += "</riivomem>";
-
-			XmlRootAttribute xRoot = new XmlRootAttribute();
-			xRoot.ElementName = "riivomem";
-			xRoot.IsNullable = true;
-
-			XmlSerializer serializer = new XmlSerializer(typeof(riivoPatches), xRoot);
-			byte[] xmlButInBytes = Encoding.UTF8.GetBytes(fullXML);
-			MemoryStream stream = new MemoryStream(xmlButInBytes);
-			riivoPatches patches = (riivoPatches)serializer.Deserialize(stream);
-
-			if (!isSilent) { Console.WriteLine("-Found " + patches.memory.Length + " patches.\r\n\r\nPatching..."); }
-
-			// Patching the DOL!
-			foreach (riivoPatch riivo in patches.memory)
-			{
-				uint pointer = Convert.ToUInt32(riivo.offset.Replace("0x", ""), 16);
-				uint dolOffset = getOffsetFromPointer(pointer);
-
-				if (riivo.valuefile == "" || riivo.valuefile == null) // Classic memory patches
-				{
-					if (dolOffset == 0) // I didn't implement the section creating feature for single patches as it would literally create one section PER patch that is outside of the DOL range, which would end up using all sections with only a very few patches.
+					int index = XML.findPatchIndexByName(patchToUse);
+					if(index < 0)
 					{
-						if (!isSilent) { Console.WriteLine(riivo.offset + " is outside of the DOL range, skipping to the next patch."); }
-						continue;
+						Console.WriteLine("Can't find patch " + patchToUse);
+						return;
 					}
+					patches.Add(XML.patch[index]);
+				}
+			}
+			else
+			{
+				patches = XML.patch.ToList();
+			}
 
-					int byteCount = riivo.value.Length / 2;
+			List<string> supportedRegions = new List<string>();
+			foreach (riivolutionIDRegion available in XML.id.region)
+			{
+				supportedRegions.Add(available.type);
+			}
+			if(region != "Ask" && !supportedRegions.Contains(region))
+			{
+				Console.WriteLine("Region \"" + region + "\" isn't supported by this XML.");
+			}
 
-					if (riivo.original != "" && riivo.original != null) // Compare to the original data in the DOL in case it's needed
+
+			foreach (riivolutionPatch patch in patches)
+			{
+				if (!isSilent) { Console.WriteLine("-Found " + patch.memory.Length + " dolpatches.\r\n\r\nPatching..."); }
+
+				// Patching the DOL!
+				foreach (riivolutionPatchMemory riivo in patch.memory)
+				{
+					uint pointer = Convert.ToUInt32(riivo.offset.Replace("0x", ""), 16);
+					uint dolOffset = getOffsetFromPointer(pointer);
+
+					if (riivo.valuefile == "" || riivo.valuefile == null) // Classic memory patches
 					{
-						string OGValue = "";
-
-						for (int i = 0; i < byteCount; i++)
+						if (dolOffset == 0) // I didn't implement the section creating feature for single patches as it would literally create one section PER patch that is outside of the DOL range, which would end up using all sections with only a very few patches.
 						{
-							OGValue += dol[dolOffset + i].ToString("X2");
-						}
-
-						if (OGValue.ToUpper() != riivo.original.ToUpper()) // I know comparing these as strings is definitely not the best idea, but I can't think of any better way.
-						{
-							if (!isSilent) { Console.WriteLine(riivo.offset + " -> OG: " + riivo.original + "; DOL: " + OGValue + " -> Doesn't match, ignoring..."); }
+							if (!isSilent) { Console.WriteLine(riivo.offset + " is outside of the DOL range, skipping to the next patch."); }
 							continue;
 						}
-					}
 
-					for (int i = 0; i < byteCount; i++) // Replace the bytes in the dol
-					{
-						dol[dolOffset + i] = Convert.ToByte(riivo.value.Substring(i * 2, 2), 16);
-					}
-
-					if (riivo.original == "" || riivo.original == null) // This is purely for "Console outputs are looking good" purposes
-					{
-						riivo.original = "None";
-					}
-
-					if (!isSilent) { Console.WriteLine(riivo.offset + " -> DOLOffset: " + dolOffset + "; Value: " + riivo.value + "; OG: " + riivo.original + " -> Patched."); }
-
-					continue;
-				}
-				else // Memory patches involving a binary file
-				{
-					string path = (binPath == "") ? (Path.GetDirectoryName(xmlPath) + Path.DirectorySeparatorChar + riivo.valuefile) : (binPath + riivo.valuefile);
-					byte[] binaryFile = new byte[0];
-
-					if (File.Exists(path))
-					{
-						binaryFile = File.ReadAllBytes(path);
-						if (!isSilent) { Console.WriteLine("Found " + riivo.valuefile); }
-					}
-
-					else
-					{
-						Console.WriteLine("Cannot find " + riivo.valuefile + ", please select it.");
-						using (OpenFileDialog dialog3 = new OpenFileDialog())
+						if(riivo.target != "" && riivo.target != null)
 						{
-							dialog3.Filter = "Binary File|*.bin|All files (*.*)|*.*";
-							dialog3.FilterIndex = 1;
-							dialog3.RestoreDirectory = true;
-
-							if (dialog3.ShowDialog() == DialogResult.OK)
+							if (region == "Ask")
 							{
-								binaryFile = File.ReadAllBytes(dialog3.FileName);
-								if (!isSilent) { Console.WriteLine("Found " + riivo.valuefile + ", continuing..."); }
+								string regionsAvailable = "";
+								foreach (string available in supportedRegions)
+								{
+									regionsAvailable += available + "/";
+								}
+								Console.Write("A region is required to continue, please input a region to use (" + regionsAvailable.Substring(0, regionsAvailable.Length - 1) + "): ");
+
+								while (true)
+								{
+									string outRegion = Console.ReadLine();
+									if (supportedRegions.Contains(outRegion))
+									{
+										region = outRegion;
+										break;
+									}
+									else
+									{
+										Console.Write(outRegion + " isn't a valid region. Please input a region to use (" + regionsAvailable.Substring(0, regionsAvailable.Length - 1) + "): ");
+									}
+								}
+							}
+
+							if(riivo.target != region)
+							{
+								Console.WriteLine("Patch " + riivo.offset + " can't be applied to this region, skipping to the next patch.");
+								continue;
+							}
+						}
+
+						int byteCount = riivo.value.Length / 2;
+
+						if (riivo.original != "" && riivo.original != null) // Compare to the original data in the DOL in case it's needed
+						{
+							string OGValue = "";
+
+							for (int i = 0; i < byteCount; i++)
+							{
+								OGValue += dol[dolOffset + i].ToString("X2");
+							}
+
+							if (OGValue.ToUpper() != riivo.original.ToUpper()) // I know comparing these as strings is definitely not the best idea, but I can't think of any better way.
+							{
+								if (!isSilent) { Console.WriteLine(riivo.offset + " -> OG: " + riivo.original + "; DOL: " + OGValue + " -> Doesn't match, ignoring..."); }
+								continue;
+							}
+						}
+
+						for (int i = 0; i < byteCount; i++) // Replace the bytes in the dol
+						{
+							dol[dolOffset + i] = Convert.ToByte(riivo.value.Substring(i * 2, 2), 16);
+						}
+
+						if (riivo.original == "" || riivo.original == null) // This is purely for "Console outputs are looking good" purposes
+						{
+							riivo.original = "None";
+						}
+
+						if (!isSilent) { Console.WriteLine(riivo.offset + " -> DOLOffset: " + dolOffset + "; Value: " + riivo.value + "; OG: " + riivo.original + " -> Patched."); }
+
+						continue;
+					}
+					else // Memory patches involving a binary file
+					{
+						if (riivo.valuefile.Contains("{$__region}"))
+						{
+							if(region != "Ask")
+							{
+								if (!isSilent) { Console.WriteLine(riivo.valuefile + " is a region-changing file, using " + riivo.valuefile.Replace("{$__region}", region)); }
+								riivo.valuefile = riivo.valuefile.Replace("{$__region}", region);
 							}
 							else
 							{
-								if (!isSilent) { Console.WriteLine("Ignoring Patch " + riivo.value + " -> Binary file selecting cancelled."); }
+								string regionsAvailable = "";
+								foreach(string available in supportedRegions)
+								{
+									regionsAvailable += available + "/";
+								}
+								Console.Write(riivo.valuefile + " is a region-changing file, please input a region to use (" + regionsAvailable.Substring(0, regionsAvailable.Length - 1) + "): ");
+
+								while(true)
+								{
+									string outRegion = Console.ReadLine();
+									if(supportedRegions.Contains(outRegion))
+									{
+										riivo.valuefile = riivo.valuefile.Replace("{$__region}", outRegion);
+										break;
+									}
+									else
+									{
+										Console.Write(outRegion + " isn't a valid region. Please input a region to use (" + regionsAvailable.Substring(0, regionsAvailable.Length - 1) + "): ");
+									}
+								}
 							}
 						}
-					}
 
-					if (dolOffset == 0) // New section creating
-					{
-						string answer;
-						if (alwaysCreateSections == false && neverCreateSections == false)
+
+						string path = (binPath == "") ? (Path.GetDirectoryName(xmlPath) + Path.DirectorySeparatorChar + riivo.valuefile.Replace('/', '\\')) : (binPath + riivo.valuefile.Replace('/', '\\'));
+						byte[] binaryFile = new byte[0];
+
+						if (File.Exists(path))
 						{
-							Console.Write(riivo.offset + " is outside of the DOL range. Do you want to try to create a new section for it? (Yes/No): ");
+							binaryFile = File.ReadAllBytes(path);
+							if (!isSilent) { Console.WriteLine("Found " + riivo.valuefile); }
 						}
-						answer = alwaysCreateSections ? "yes" : (neverCreateSections ? "no" : Console.ReadLine());
 
-						if (answer.Equals("yes", StringComparison.InvariantCultureIgnoreCase) || answer.Equals("y", StringComparison.InvariantCultureIgnoreCase))
+						else
 						{
-
-							int newSectionIndex = getNextEmptySection();
-
-							if (newSectionIndex < 0)
+							Console.WriteLine("Cannot find " + riivo.valuefile + ", please select it.");
+							using (OpenFileDialog dialog3 = new OpenFileDialog())
 							{
-								Console.WriteLine("Can't create a new section for pointer " + riivo.offset + ": No free section available.");
+								dialog3.Filter = "Binary File|*.bin|All files (*.*)|*.*";
+								dialog3.FilterIndex = 1;
+								dialog3.RestoreDirectory = true;
+
+								if (dialog3.ShowDialog() == DialogResult.OK)
+								{
+									binaryFile = File.ReadAllBytes(dialog3.FileName);
+									if (!isSilent) { Console.WriteLine("Found " + riivo.valuefile + ", continuing..."); }
+								}
+								else
+								{
+									if (!isSilent) { Console.WriteLine("Ignoring Patch " + riivo.value + " -> Binary file selecting cancelled."); }
+								}
+							}
+						}
+
+						if (dolOffset == 0) // New section creating
+						{
+							string answer;
+							if (alwaysCreateSections == false && neverCreateSections == false)
+							{
+								Console.Write(riivo.offset + " is outside of the DOL range. Do you want to try to create a new section for it? (Yes/No): ");
+							}
+							answer = alwaysCreateSections ? "yes" : (neverCreateSections ? "no" : Console.ReadLine());
+
+							if (answer.Equals("yes", StringComparison.InvariantCultureIgnoreCase) || answer.Equals("y", StringComparison.InvariantCultureIgnoreCase))
+							{
+
+								int newSectionIndex = getNextEmptySection();
+
+								if (newSectionIndex < 0)
+								{
+									Console.WriteLine("Can't create a new section for pointer " + riivo.offset + ": No free section available.");
+									continue;
+								}
+
+								int highestSection = getHighestSection();
+								byte[] previousSections = dol.Take((int)(dolOffsets[highestSection] + sectionSizes[highestSection])).ToArray();
+								byte[] footer = dol.Skip((int)(dolOffsets[highestSection] + sectionSizes[highestSection])).ToArray();
+								dol = previousSections.Concat(binaryFile).Concat(footer).ToArray();
+								dolOffsets[newSectionIndex] = dolOffsets[highestSection] + sectionSizes[highestSection];
+								realPointers[newSectionIndex] = pointer;
+								sectionSizes[newSectionIndex] = (uint)binaryFile.Length;
+
+								for (int i = 0; i < 4; i++)
+								{
+									dol[4 * newSectionIndex + i] = Convert.ToByte(dolOffsets[newSectionIndex].ToString("X8").Substring(i * 2, 2), 16);
+									dol[4 * newSectionIndex + i + 0x48] = Convert.ToByte(realPointers[newSectionIndex].ToString("X8").Substring(i * 2, 2), 16);
+									dol[4 * newSectionIndex + i + 0x90] = Convert.ToByte(sectionSizes[newSectionIndex].ToString("X8").Substring(i * 2, 2), 16);
+								}
+
+								newSectionsIndexes.Add(newSectionIndex);
+
+								dolOffset = getOffsetFromPointer(pointer);
+
+								if (!isSilent) { Console.WriteLine("Created new section for " + riivo.valuefile + " at " + dolOffset.ToString("X") + ", pointing at " + riivo.offset + " at index " + newSectionIndex + "."); }
+
+								if(mergeSectionsThatCanBeMerged())
+								{
+									Console.WriteLine("Merged sections that could be merged.");
+								}
+							}
+							else
+							{
+								if (!isSilent) { Console.WriteLine("New section creating refused, skipping to next patch."); }
 								continue;
 							}
-
-							int highestSection = getHighestSection();
-							byte[] previousSections = dol.Take((int)(dolOffsets[highestSection] + sectionSizes[highestSection])).ToArray();
-							byte[] footer = dol.Skip((int)(dolOffsets[highestSection] + sectionSizes[highestSection])).ToArray();
-							dol = previousSections.Concat(binaryFile).Concat(footer).ToArray();
-							dolOffsets[newSectionIndex] = dolOffsets[highestSection] + sectionSizes[highestSection];
-							realPointers[newSectionIndex] = pointer;
-							sectionSizes[newSectionIndex] = (uint)binaryFile.Length;
-
-							for (int i = 0; i < 4; i++)
-							{
-								dol[4 * newSectionIndex + i] = Convert.ToByte(dolOffsets[newSectionIndex].ToString("X8").Substring(i * 2, 2), 16);
-								dol[4 * newSectionIndex + i + 0x48] = Convert.ToByte(realPointers[newSectionIndex].ToString("X8").Substring(i * 2, 2), 16);
-								dol[4 * newSectionIndex + i + 0x90] = Convert.ToByte(sectionSizes[newSectionIndex].ToString("X8").Substring(i * 2, 2), 16);
-							}
-
-							dolOffset = getOffsetFromPointer(pointer);
-
-							if (!isSilent) { Console.WriteLine("Created new section for " + riivo.valuefile + " at " + dolOffset.ToString("X") + ", pointing at " + riivo.offset + " at index " + newSectionIndex + "."); }
 						}
 						else
 						{
-							if (!isSilent) { Console.WriteLine("New section creating refused, skipping to next patch."); }
-							continue;
+
+							for (int i = 0; i < binaryFile.Length; i++)
+							{
+								dol[dolOffset + i] = binaryFile[i];
+							}
 						}
-					}
 
-					for (int i = 0; i < binaryFile.Length; i++)
-					{
-						dol[dolOffset + i] = binaryFile[i];
-					}
+						if (riivo.original == "" || riivo.original == null)
+						{
+							riivo.original = "None";
+						}
 
-					if (riivo.original == "" || riivo.original == null)
-					{
-						riivo.original = "None";
+						if (!isSilent) { Console.WriteLine(riivo.offset + " -> DOLOffset: " + dolOffset.ToString("X") + "; ValueFile: " + riivo.valuefile + " -> Patched."); }
 					}
-
-					if (!isSilent) { Console.WriteLine(riivo.offset + " -> DOLOffset: " + dolOffset + "; ValueFile: " + riivo.valuefile + " -> Patched."); }
 				}
-
 			}
 
 			Console.WriteLine("DOL patched.");
@@ -363,7 +495,7 @@ namespace Asu_s_Dolpatcher
 		{
 			for (int i = 0; i < dolOffsets.Count; i++)
 			{
-				if (pointer >= realPointers[i] && pointer <= (realPointers[i] + sectionSizes[i]))
+				if (pointer >= realPointers[i] && pointer < (realPointers[i] + sectionSizes[i]))
 				{
 					return dolOffsets[i] + (pointer - realPointers[i]);
 				}
@@ -396,26 +528,42 @@ namespace Asu_s_Dolpatcher
 			}
 			return -1;
 		}
-	}
 
-	public class riivoPatches
-	{
-		[XmlElement(ElementName = "memory")]
-		public riivoPatch[] memory { get; set; }
-	}
+		public bool mergeSectionsThatCanBeMerged()
+		{
+			bool didMerged = false;
+			foreach(int newSection in newSectionsIndexes) {
+				foreach (int otherSection in newSectionsIndexes)
+				{
+					if(otherSection == newSection)
+					{
+						continue;
+					}
+					if(realPointers[newSection] + sectionSizes[newSection] == realPointers[otherSection])
+					{
+						sectionSizes[newSection] += sectionSizes[otherSection];
+						dolOffsets[otherSection] = 0;
+						realPointers[otherSection] = 0;
+						sectionSizes[otherSection] = 0;
+						didMerged = true;
+					}
+				}
+			}
+			reencodeDolHeader();
+			return didMerged;
+		}
 
-	public class riivoPatch
-	{
-		[XmlAttribute(AttributeName = "offset")]
-		public string offset { get; set; }
-
-		[XmlAttribute(AttributeName = "value")]
-		public string value { get; set; }
-
-		[XmlAttribute(AttributeName = "original")]
-		public string original { get; set; }
-
-		[XmlAttribute(AttributeName = "valuefile")]
-		public string valuefile { get; set; }
+		public void reencodeDolHeader()
+		{
+			for(int i = 0; i < dolOffsets.Count; i++)
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					dol[4 * i + j] = Convert.ToByte(dolOffsets[i].ToString("X8").Substring(j * 2, 2), 16);
+					dol[4 * i + j + 0x48] = Convert.ToByte(realPointers[i].ToString("X8").Substring(j * 2, 2), 16);
+					dol[4 * i + j + 0x90] = Convert.ToByte(sectionSizes[i].ToString("X8").Substring(j * 2, 2), 16);
+				}
+			}
+		}
 	}
 }

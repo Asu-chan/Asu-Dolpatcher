@@ -1,4 +1,4 @@
-# Asu's Dolpatcher - v1.0.0
+# Asu's Dolpatcher - v1.1.0
 A tool to patch Nintendo Wii DOL executables using Riivolution XML files.
 
 # Usage
@@ -11,13 +11,17 @@ A tool to patch Nintendo Wii DOL executables using Riivolution XML files.
 (Note: In the 2nd and 3rd cases, you will be asked for the file paths.)
 
 # Options
---silent                  -\> Prevents from displaying any console outputs aparts from the necessary ones
+--silent                           -\> Prevents from displaying any console outputs apart from the necessary ones
 
---always-create-sections  -\> Always create a new section if a target pointer is outside of the DOL range.
+--always-create-sections           -\> Always create a new section if a target pointer is outside of the DOL range.
 
---never-create-sections   -\> Never create a new section if a target pointer is outside of the DOL range.
+--never-create-sections            -\> Never create a new section if a target pointer is outside of the DOL range.
 
---binary-files-dir \<path\> -\> Set the default directory for binary files
+--binary-files-dir \<path\>      -\> Set the default directory for binary files
+
+--only-patches "Patch1;Patch2;..." -\> Makes it so only the given patches will be used to patch the DOL.
+
+--region <P/E/J/K/W>               -\> Uses the said region for files that requires a region name.
 
 # Support
 Need any help? Feel free to contact me on discord: <b>Asu-chan#2929</b>
