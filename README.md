@@ -1,6 +1,9 @@
 # Asu's Dolpatcher - v1.1.0
 A tool to patch Nintendo Wii DOL executables using Riivolution XML files.
 
+# Deprecation note
+I'm no longer working on this tool, as a superior version has been made and implemented into my [RiivolutionIsoBuilder](https://github.com/Asu-chan/RiivolutionIsoBuilder). Please use it instead.
+
 # Usage
 "Asu's Dolpatcher.exe" \<DOL path\> \<Riivolution XML path\> \<Output DOL path\> [options]
 
